@@ -1,0 +1,15 @@
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+  categories:
+    - title: Security and reliability
+      labels: [security, reliability]
+    - title: AgentOS product adaptations
+      labels: [branding, product-contract]
+    - title: Upstream Hermes changes
+      labels: [upstream-hermes]
+    - title: Packaging and release
+      labels: [packaging, release]
+    - title: Other changes
+      labels: ['*']

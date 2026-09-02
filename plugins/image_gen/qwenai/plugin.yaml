@@ -1,0 +1,7 @@
+name: qwenai
+version: 1.0.0
+description: QwenAI text-to-image generation with automatic model discovery
+author: local
+kind: backend
+requires_env:
+  - QWENAI_API_KEY

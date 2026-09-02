@@ -1,0 +1,330 @@
+name: Build exact release candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      manifest:
+        description: Candidate manifest path
+        required: true
+        default: release-manifests/v2026.09.02.candidate.json
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+  attestations: write
+  id-token: write
+
+concurrency:
+  group: candidate-${{ inputs.manifest }}
+  cancel-in-progress: false
+
+jobs:
+  identity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      source_commit: ${{ steps.manifest.outputs.source_commit }}
+      source_short: ${{ steps.manifest.outputs.source_short }}
+      release_tag: ${{ steps.manifest.outputs.release_tag }}
+      rc_tag: ${{ steps.manifest.outputs.rc_tag }}
+      image: ${{ steps.manifest.outputs.image }}
+      image_rc: ${{ steps.manifest.outputs.image_rc }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Validate locked candidate identity
+        run: |
+          python3 scripts/validate_release_manifest.py '${{ inputs.manifest }}' --for-candidate
+          python3 scripts/verify_upstream.py '${{ inputs.manifest }}'
+      - id: manifest
+        name: Export immutable identity
+        env:
+          MANIFEST: ${{ inputs.manifest }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os
+          data = json.load(open(os.environ['MANIFEST'], encoding='utf-8'))
+          sha = data['sourceCommit']
+          release = data['releaseTag']
+          image = data['artifacts']['container']['image'].rsplit(':', 1)[0]
+          values = {
+              'source_commit': sha,
+              'source_short': sha[:12],
+              'release_tag': release,
+              'rc_tag': f'{release}-rc.{sha[:12]}',
+              'image': image,
+              'image_rc': f'{image}:candidate-{release}-{sha[:12]}',
+          }
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              for key, value in values.items():
+                  output.write(f'{key}={value}\n')
+          PY
+
+  acceptance:
+    needs: identity
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout governance
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          path: governance
+      - name: Checkout exact AgentOS source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: hqzyai/agentos-desktop
+          ref: ${{ needs.identity.outputs.source_commit }}
+          token: ${{ secrets.AGENTOS_SOURCE_TOKEN }}
+          path: source
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.11'
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      - name: Install test dependencies
+        working-directory: source
+        run: |
+          npm install
+          uv sync --all-extras --dev
+      - name: Run full acceptance baseline
+        run: python3 governance/scripts/run_acceptance.py --source source --mode full --report acceptance-report.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: acceptance-report
+          path: acceptance-report.json
+          if-no-files-found: error
+
+  container:
+    needs: [identity, acceptance]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact AgentOS source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: hqzyai/agentos-desktop
+          ref: ${{ needs.identity.outputs.source_commit }}
+          token: ${{ secrets.AGENTOS_SOURCE_TOKEN }}
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: push
+        name: Build and push architecture by digest
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: Dockerfile
+          platforms: ${{ matrix.platform }}
+          labels: org.opencontainers.image.revision=${{ needs.identity.outputs.source_commit }}
+          build-args: HERMES_GIT_SHA=${{ needs.identity.outputs.source_commit }}
+          outputs: type=image,name=${{ needs.identity.outputs.image }},push-by-digest=true,name-canonical=true,push=true
+      - name: Export digest marker
+        shell: bash
+        run: |
+          mkdir -p digests
+          digest='${{ steps.push.outputs.digest }}'
+          touch "digests/${digest#sha256:}"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digest-${{ matrix.arch }}
+          path: digests/*
+          if-no-files-found: error
+          retention-days: 7
+
+  container-manifest:
+    needs: [identity, container]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      digest: ${{ steps.inspect.outputs.digest }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: digests
+          pattern: digest-*
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Assemble RC manifest without rebuilding
+        working-directory: digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          refs=()
+          for file in *; do refs+=("${{ needs.identity.outputs.image }}@sha256:$file"); done
+          docker buildx imagetools create -t '${{ needs.identity.outputs.image_rc }}' "${refs[@]}"
+      - id: inspect
+        name: Record RC manifest digest
+        shell: bash
+        run: |
+          digest=$(docker buildx imagetools inspect '${{ needs.identity.outputs.image_rc }}' --format '{{json .Manifest.Digest}}' | tr -d '"')
+          test -n "$digest"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - name: Block high and critical image vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ needs.identity.outputs.image_rc }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+      - name: Generate SPDX SBOM
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          image: ${{ needs.identity.outputs.image_rc }}
+          format: spdx-json
+          output-file: ai-agent-container.spdx.json
+          upload-artifact: false
+      - name: Attest container provenance
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-name: ${{ needs.identity.outputs.image }}
+          subject-digest: ${{ steps.inspect.outputs.digest }}
+          push-to-registry: true
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: container-metadata
+          path: ai-agent-container.spdx.json
+          if-no-files-found: error
+          retention-days: 14
+
+  desktop:
+    needs: [identity, acceptance]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            command: npm run dist:linux
+          - os: macos-latest
+            platform: macos
+            command: npm run dist:mac
+          - os: windows-latest
+            platform: windows
+            command: npm run dist:win
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 150
+    steps:
+      - name: Checkout exact AgentOS source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: hqzyai/agentos-desktop
+          ref: ${{ needs.identity.outputs.source_commit }}
+          token: ${{ secrets.AGENTOS_SOURCE_TOKEN }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.11'
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      - name: Install Linux packaging dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git curl xz-utils build-essential ripgrep
+      - name: Install dependencies
+        run: npm install
+      - name: Package exact candidate
+        working-directory: apps/desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          HERMES_DESKTOP_BUNDLE_AGENT: '1'
+          GITHUB_SHA: ${{ needs.identity.outputs.source_commit }}
+          GITHUB_REF_NAME: ${{ needs.identity.outputs.rc_tag }}
+        run: ${{ matrix.command }}
+      - name: Verify embedded offline runtime
+        shell: python
+        run: |
+          import json, pathlib
+          root = pathlib.Path('apps/desktop/build/bundled-agent')
+          manifest = json.loads((root / 'manifest.json').read_text())
+          assert not manifest.get('skipped') and manifest.get('bundled') is not False, manifest
+          agent = root / 'hermes-home/hermes-agent'
+          assert (agent / 'hermes_cli/main.py').is_file()
+          python = agent / ('venv/Scripts/python.exe' if '${{ matrix.platform }}' == 'windows' else 'venv/bin/python')
+          assert python.is_file(), python
+      - name: Create artifact checksum list
+        shell: python
+        run: |
+          import hashlib, json, pathlib
+          files = [p for p in pathlib.Path('apps/desktop/release').iterdir() if p.is_file()]
+          assert files, 'desktop release directory is empty'
+          rows=[]
+          for path in files:
+              value = hashlib.sha256()
+              with path.open('rb') as stream:
+                  for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                      value.update(chunk)
+              rows.append({'name': path.name, 'sha256': value.hexdigest()})
+          pathlib.Path('apps/desktop/release/${{ matrix.platform }}.artifacts.json').write_text(json.dumps(rows, indent=2)+'\n')
+      - name: Attest desktop artifact provenance
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: apps/desktop/release/*
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: desktop-${{ matrix.platform }}
+          path: apps/desktop/release/*
+          if-no-files-found: error
+          retention-days: 14
+
+  draft-release:
+    needs: [identity, container-manifest, desktop]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: dist
+          pattern: desktop-*
+          merge-multiple: true
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: dist
+          name: container-metadata
+      - name: Write candidate evidence
+        env:
+          SOURCE_COMMIT: ${{ needs.identity.outputs.source_commit }}
+          IMAGE: ${{ needs.identity.outputs.image_rc }}
+          DIGEST: ${{ needs.container-manifest.outputs.digest }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib
+          data={'sourceCommit':os.environ['SOURCE_COMMIT'],'containerImage':os.environ['IMAGE'],'containerDigest':os.environ['DIGEST']}
+          pathlib.Path('dist/candidate-evidence.json').write_text(json.dumps(data,indent=2)+'\n')
+          PY
+      - name: Create immutable draft prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RC_TAG: ${{ needs.identity.outputs.rc_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$RC_TAG" >/dev/null 2>&1; then
+            echo "RC release already exists and is immutable: $RC_TAG" >&2
+            exit 1
+          fi
+          gh release create "$RC_TAG" dist/* --draft --prerelease \
+            --title "$RC_TAG" --notes "Exact candidate; source ${{ needs.identity.outputs.source_commit }}; image ${{ needs.identity.outputs.image_rc }}@${{ needs.container-manifest.outputs.digest }}"

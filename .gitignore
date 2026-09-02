@@ -191,6 +191,11 @@ scripts/out/
 # committed to the repo root. See the hermes-release skill.
 RELEASE_v*.md
 
+# AgentOS downstream acceptance/release scratch artifacts.
+acceptance-report.json
+release-notes.md
+/dist/
+
 # Desktop demo-run scratch output (hermes writes demo/*.txt during recorded
 # walkthroughs). Throwaway artifacts, never part of the app.
 apps/desktop/demo/

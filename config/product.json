@@ -1,0 +1,12 @@
+{
+  "product": "ai-agent",
+  "sourceRepository": "hqzyai/agentos-desktop",
+  "upstreamRepository": "NousResearch/hermes-agent",
+  "defaultSourceBranch": "main",
+  "branchTemplate": "ai-agent/hermes-v{hermesVersion}-{calver}",
+  "productVersionTemplate": "v{hermesVersion}-{calver}",
+  "releaseTagTemplate": "v{calver}",
+  "containerImage": "ghcr.io/hqzyai/ai-agent",
+  "desktopPlatforms": ["linux", "macos", "windows"],
+  "containerPlatforms": ["linux/amd64", "linux/arm64"]
+}

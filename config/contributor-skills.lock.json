@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "sourceRepository": "hqzyai/agentos-desktop",
+  "sourceBranch": "agentos-20260825",
+  "sourceCommit": "b67e620899a50ad717dae3ff384ca9c8050f853a",
+  "adaptation": "immutable-release-tags-domain-brand-profile",
+  "skills": ["merge-hermes-upstream"],
+  "files": {
+    "docs/skills/merge-hermes-upstream/SKILL.md": "e112bd77bbf4b321529620ac68d35ea0ba79e85f3861ed5c84b60f9bda9cc3fa",
+    "docs/skills/merge-hermes-upstream/agents/openai.yaml": "bbd1702c3e0bd6cbda3de5a8581ae95205e586bbe54dd8797ea8e9c254189296",
+    "docs/skills/merge-hermes-upstream/references/00-README.md": "e0fe32230a5115b59bdadfb5ef9494d9e1fa6d5f40b7791e9bfb8aa3289dd637",
+    "docs/skills/merge-hermes-upstream/references/01-feature-inventory.md": "b2ec102664ea454161c98152b518f20e0c7609235b742097fb5b9ea54668acc8",
+    "docs/skills/merge-hermes-upstream/references/02-auth-and-remote-gateway.md": "ace515bae1fa0f2cbee3a65d71f34bb86b16a291347ef620d808e55643688c8c",
+    "docs/skills/merge-hermes-upstream/references/03-chat-media-artifacts.md": "2d22d97b98671d2555c1b714506f5bf34a3406874c651f8f6df34b3bfea88125",
+    "docs/skills/merge-hermes-upstream/references/04-cron-messaging-i18n-ui.md": "20a1e64044e29f2ba0e775fd2f56d35083fc993d6f47a3302c3818628dd1628f",
+    "docs/skills/merge-hermes-upstream/references/05-offline-packaging-and-ci.md": "a341a2ac26da5a30687dfd4f19fb0939b5ae0cd96da37b88010b58c686fb6aec",
+    "docs/skills/merge-hermes-upstream/references/06-ai-agent-migration-checklist.md": "de0c1287a0946681c58125f84bc9e38ca74bd682c731fd24d50e7e6f9ba2cdb4",
+    "docs/skills/merge-hermes-upstream/references/brand-profile.md": "0ed7f756dea9effa8cb2f1acc9402762895660144162906f53979b777c3ef554",
+    "docs/skills/merge-hermes-upstream/references/bundled-plugins.md": "be322ee4f77a847544459e5a2396ab7d59f2eb0d6cbecd92facbfaf3ad832190",
+    "docs/skills/merge-hermes-upstream/references/spec-map.md": "deeba18c6794c63b286a174d2ef65bed832f1ee28870fbe58ece903fd9355dcc",
+    "docs/skills/merge-hermes-upstream/scripts/audit-agentos-contracts.sh": "61f64a64583c8c211754a16d3679df255390070d10f643bc1b05cdf1b01128ed",
+    "docs/skills/merge-hermes-upstream/scripts/start-merge.sh": "3859971e642b4906c59818d1824c74a95c458b69f80e9536689203574b695179",
+    "docs/skills/merge-hermes-upstream/scripts/validate-merge.sh": "018a7285e901d1ba521d9c5223f473ee28932c294dc5154892bff3491319d560"
+  }
+}

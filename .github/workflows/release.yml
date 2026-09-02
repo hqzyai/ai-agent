@@ -1,0 +1,78 @@
+name: Promote approved candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      manifest:
+        description: Approved release manifest path
+        required: true
+        default: release-manifests/v2026.09.02.candidate.json
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Validate human-approved release gate
+        run: python3 scripts/validate_release_manifest.py '${{ inputs.manifest }}' --for-release
+      - id: identity
+        env:
+          MANIFEST: ${{ inputs.manifest }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os
+          d=json.load(open(os.environ['MANIFEST'], encoding='utf-8'))
+          sha=d['sourceCommit']; release=d['releaseTag']; image=d['artifacts']['container']['image'].rsplit(':',1)[0]
+          values={'release_tag':release,'rc_tag':f'{release}-rc.{sha[:12]}','image_rc':f'{image}:candidate-{release}-{sha[:12]}','image_final':f'{image}:{release}','digest':d['artifacts']['container']['digest']}
+          with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as out:
+              for k,v in values.items(): out.write(f'{k}={v}\n')
+          PY
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify and promote the same image manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual=$(docker buildx imagetools inspect '${{ steps.identity.outputs.image_rc }}' --format '{{json .Manifest.Digest}}' | tr -d '"')
+          test "$actual" = '${{ steps.identity.outputs.digest }}'
+          existing=$(docker buildx imagetools inspect '${{ steps.identity.outputs.image_final }}' --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || true)
+          if [ -n "$existing" ] && [ "$existing" != "$actual" ]; then
+            echo "refusing to overwrite final tag with a different digest" >&2
+            exit 1
+          fi
+          if [ -z "$existing" ]; then
+            docker buildx imagetools create -t '${{ steps.identity.outputs.image_final }}' '${{ steps.identity.outputs.image_rc }}@${{ steps.identity.outputs.digest }}'
+          fi
+      - name: Download exact RC desktop assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release download '${{ steps.identity.outputs.rc_tag }}' --dir dist
+      - name: Verify asset checksums and render notes
+        run: |
+          python3 scripts/verify_release_assets.py '${{ inputs.manifest }}' dist
+          python3 scripts/render_release_notes.py '${{ inputs.manifest }}' --output release-notes.md
+      - name: Publish formal release without rebuilding
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create '${{ steps.identity.outputs.release_tag }}' dist/* \
+            --title '${{ steps.identity.outputs.release_tag }}' \
+            --notes-file release-notes.md

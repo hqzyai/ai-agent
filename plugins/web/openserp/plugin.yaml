@@ -1,0 +1,9 @@
+name: web-openserp
+version: 1.0.0
+description: "OpenSERP 网页搜索 — 自托管 SERP API（仅 Baidu + Bing）。通过 OPENSERP_URL 指向本地 openserp 服务。"
+author: zang
+kind: backend
+provides_web_providers:
+  - openserp
+requires_env:
+  - OPENSERP_URL

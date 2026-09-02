@@ -1,0 +1,85 @@
+name: Start Hermes upstream sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      hermes_version:
+        description: Hermes semver without leading v
+        required: true
+        type: string
+      upstream_tag:
+        description: Exact official Hermes tag
+        required: true
+        type: string
+      calver:
+        description: AgentOS CalVer (YYYY.MM.DD)
+        required: true
+        type: string
+      base_branch:
+        description: Source repository base branch
+        required: true
+        default: main
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout governance repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          path: governance
+      - name: Checkout AgentOS source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: hqzyai/agentos-desktop
+          ref: ${{ inputs.base_branch }}
+          fetch-depth: 0
+          token: ${{ secrets.AGENTOS_SOURCE_TOKEN }}
+          path: source
+      - name: Start exact upstream merge
+        id: merge
+        working-directory: source
+        shell: bash
+        run: |
+          set +e
+          ../governance/scripts/start_sync.sh \
+            '${{ inputs.hermes_version }}' '${{ inputs.upstream_tag }}' \
+            '${{ inputs.calver }}' '${{ inputs.base_branch }}'
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          git diff --name-only --diff-filter=U > ../merge-conflicts.txt
+      - name: Upload semantic conflict report
+        if: steps.merge.outputs.status == '2'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: merge-conflicts-${{ inputs.calver }}
+          path: merge-conflicts.txt
+          if-no-files-found: error
+      - name: Commit clean merge and open draft PR
+        if: steps.merge.outputs.status == '0'
+        working-directory: source
+        env:
+          GH_TOKEN: ${{ secrets.AGENTOS_SOURCE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="ai-agent/hermes-v${{ inputs.hermes_version }}-${{ inputs.calver }}"
+          git config user.name agentos-release-bot
+          git config user.email agentos-release-bot@users.noreply.github.com
+          git commit -m "merge: Hermes ${{ inputs.hermes_version }} (${{ inputs.upstream_tag }})"
+          git push origin "$branch"
+          gh pr create --draft --base '${{ inputs.base_branch }}' --head "$branch" \
+            --title "merge: Hermes v${{ inputs.hermes_version }} / AgentOS ${{ inputs.calver }}" \
+            --body-file ../governance/.github/PULL_REQUEST_TEMPLATE/upstream-sync.md
+      - name: Stop on conflicts or setup failure
+        if: steps.merge.outputs.status != '0'
+        shell: bash
+        run: |
+          echo "Automatic intake did not produce a clean merge. Resolve conflicts semantically in a persistent checkout."
+          exit 1

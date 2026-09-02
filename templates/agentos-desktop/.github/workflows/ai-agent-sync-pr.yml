@@ -1,0 +1,48 @@
+name: AgentOS upstream-sync PR gate
+
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore: ['docs/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    if: startsWith(github.head_ref || github.ref_name, 'ai-agent/hermes-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout AgentOS source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          path: source
+      - name: Checkout ai-agent governance
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: hqzyai/ai-agent
+          token: ${{ secrets.AI_AGENT_READ_TOKEN }}
+          path: governance
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.11'
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      - name: Install dependencies
+        working-directory: source
+        run: |
+          npm install
+          uv sync --all-extras --dev
+      - name: Execute complete merge acceptance
+        run: python3 governance/scripts/run_acceptance.py --source source --mode full --report acceptance-report.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: upstream-sync-acceptance-${{ github.sha }}
+          path: acceptance-report.json
+          if-no-files-found: warn

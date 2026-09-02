@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "status": "draft",
+  "product": "ai-agent",
+  "productVersion": "v0.20.6-2026.08.31",
+  "releaseTag": "v2026.08.31",
+  "calver": "2026.08.31",
+  "sourceRepository": "hqzyai/agentos-desktop",
+  "sourceBranch": "ai-agent/hermes-v0.20.6-2026.08.31",
+  "sourceCommit": null,
+  "upstream": {
+    "repository": "NousResearch/hermes-agent",
+    "version": "0.20.6",
+    "tag": "v2026.8.27",
+    "tagObjectSha": "fcebd62163497e77e5de00d26d2ed86cb4ef8761",
+    "commitSha": "5fc308a70719a83cccdbba4c0e39c23f5a8239d5",
+    "releaseUrl": "https://github.com/NousResearch/hermes-agent/releases/tag/v2026.8.27"
+  },
+  "acceptance": {
+    "automated": "pending",
+    "manual": "pending",
+    "approvedBy": [],
+    "evidenceUrl": null
+  },
+  "artifacts": {
+    "container": {
+      "image": "ghcr.io/hqzyai/ai-agent:v2026.08.31",
+      "platforms": ["linux/amd64", "linux/arm64"],
+      "digest": null
+    },
+    "desktop": {
+      "linux": [],
+      "macos": [],
+      "windows": []
+    }
+  }
+}

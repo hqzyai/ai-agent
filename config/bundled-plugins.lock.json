@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "policy": "authoritative-downstream-source",
+  "excludedInputs": [
+    ".DS_Store",
+    ".idea/",
+    "__MACOSX/",
+    "hermes-im-channels-plugin-20260902.zip",
+    "runtime/desktop-plugins/im-channels/plugin.js"
+  ],
+  "bundles": [
+    {
+      "id": "desktop-channels",
+      "type": "desktop",
+      "localPaths": [
+        "apps/desktop/src/plugins/channels",
+        "patches/bundled-plugins/channels"
+      ],
+      "source": {
+        "kind": "archive",
+        "archiveName": "归档.zip",
+        "archiveSha256": "76ed98ed53ca5df1e31e10634eec87dd948b0467f5617c7fe837917d56e49ed1",
+        "memberPrefix": "im-channels-plugin-package",
+        "adaptation": "renamed im-channels plugin identity, route and components to channels"
+      },
+      "files": {
+        "apps/desktop/src/plugins/channels/page.test.tsx": "478fc7456765e8f769950b6c00526b02dee2a6162a5bd23c6d7c652b2204f08c",
+        "apps/desktop/src/plugins/channels/page.tsx": "fc26a75395a586ee14b19746188d8d9a83b48a578e1339023f25a721bf1fa17e",
+        "apps/desktop/src/plugins/channels/plugin.test.tsx": "1fef8d277dfa8c48a537ff6a37955726c57efbea86d741cc8d5da956850aef29",
+        "apps/desktop/src/plugins/channels/plugin.tsx": "3ebc19a0b45c35bd53c2950b784e5dad2de67e0bfeff2a9b4c500d8309a9c826",
+        "patches/bundled-plugins/channels/hermes-channels-integration.patch": "21bc1574b8864d959a9874c1a499b9f5189c904fdbe8b5f8156e446ab5227c80"
+      }
+    },
+    {
+      "id": "image-gen-qwenai",
+      "type": "backend",
+      "localPaths": ["plugins/image_gen/qwenai"],
+      "source": {
+        "kind": "git",
+        "repository": "https://github.com/hqzyai/hermes-plugin.git",
+        "commit": "a605cf524311a0fceae3e60b9354c2535a741378",
+        "sourcePath": "image_gen/qwenai"
+      },
+      "files": {
+        "plugins/image_gen/qwenai/README.md": "40dca8af265fcb87acd2d0bd844747e3a19d5ede26f303e6621995715a087181",
+        "plugins/image_gen/qwenai/__init__.py": "0b5fdc3be25602d83d6adc8076e265a186d9b32449d021397eb060303461a34c",
+        "plugins/image_gen/qwenai/plugin.yaml": "d420a8b11290f2ca822dd120dfab09fc2f7b56f0b5a40b36088b04f87b38990a",
+        "plugins/image_gen/qwenai/tests/test_provider.py": "f654d7ea4fbd4f8544b9a0f01399ae0a8eb0b0c7b1203814e2d8f7b93a5dff4a"
+      }
+    },
+    {
+      "id": "video-gen-qwenai",
+      "type": "backend",
+      "localPaths": ["plugins/video_gen/qwenai"],
+      "source": {
+        "kind": "git",
+        "repository": "https://github.com/hqzyai/hermes-plugin.git",
+        "commit": "a605cf524311a0fceae3e60b9354c2535a741378",
+        "sourcePath": "video_gen/qwenai"
+      },
+      "files": {
+        "plugins/video_gen/qwenai/README.md": "7dd8f14ab364136440b828567f0e26a201d2cf860e696d788c9a0eb2524b7ca2",
+        "plugins/video_gen/qwenai/__init__.py": "1e15b1fde24be7f82535a1572ea6506eb1187f330fbdfb5ad90b0ce258c160de",
+        "plugins/video_gen/qwenai/plugin.yaml": "574f7e30a83fc0c41658585d5d861c1dc4a1780408460ad8bf72e75c6a9ab350",
+        "plugins/video_gen/qwenai/tests/test_provider.py": "7efedb6d22174eb3bdc2b663b15fea90b226ef1be601695b5d99988bd4d53aff"
+      }
+    },
+    {
+      "id": "web-openserp",
+      "type": "backend",
+      "localPaths": ["plugins/web/openserp"],
+      "source": {
+        "kind": "git",
+        "repository": "https://github.com/hqzyai/hermes-plugin.git",
+        "commit": "a605cf524311a0fceae3e60b9354c2535a741378",
+        "sourcePath": "web/openserp",
+        "adaptation": "reject non-http and hostless result URLs; add deterministic filter tests"
+      },
+      "files": {
+        "plugins/web/openserp/__init__.py": "052cca4faa860c2b64be1584eaffe0ad67f99478fcdb2b3ca45e5b4b871a8847",
+        "plugins/web/openserp/_filters.py": "a76a23ac67b4ea3ebd5ef668c061ba0be3c47998a6bd54890aa133f6ee08fb9a",
+        "plugins/web/openserp/plugin.yaml": "f4472ad6aebdc5c9c60983df54ea1a081068ef63035b8b217670041fafa872c0",
+        "plugins/web/openserp/provider.py": "00bedb0240d0d74679841e2dd70a0020cbc561f764ad36e35f0740695af8b00b",
+        "plugins/web/openserp/tests/test_filters.py": "8a4d7a2a1e6ce64b2e152ebc2e494fe595aba59b5efd570034f1da710d088b08"
+      }
+    }
+  ]
+}
